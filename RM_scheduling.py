@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # ------------------------------------------
-# RM_scheduling.py: Rate Monotonic Scheduler
-# Author: Ragesh RAMACHANDRAN
+# RM_scheduling.py: RM
+# Author: Aguida Mohamed Anis
 # ------------------------------------------
 import json
 import copy
@@ -17,7 +17,7 @@ tasks = dict()
 RealTime_task = dict()
 metrics = defaultdict(dict)
 d = dict()
-dList = []
+dList = {}
 T = []
 C = []
 U = []
@@ -26,37 +26,30 @@ y_axis  = []
 from_x = []
 to_x = []
 
-def Read_data():
-	"""
-	Reading the details of the tasks to be scheduled from the user as
-	Number of tasks n:
-	Period of task P:
-	Worst case excecution time WCET:
-	"""
-	global n
+ExecIntervals = []
+ExecStart = []
+ExecFinish = []
+ExecTemp= []
+
+
+def createIDLE():
+	global dList
+	dList["TASK_IDLE"] = {"start": [], "finish": []}
+
+
+def createTask(taskID,period,WCET,secure,observer):
 	global hp
 	global tasks
 	global dList
 
-	dList = {}
+	dList["TASK_%d"%taskID] = {"start":[],"finish":[]}
+	tasks[taskID] = {}
+	tasks[taskID]["Period"] = period
+	tasks[taskID]["WCET"] = WCET
+	tasks[taskID]["Secure"] = secure
+	tasks[taskID]["Observer"] = observer
 
-	n = int(input("\n \t\tEnter number of Tasks:"))
-	# Storing data in a dictionary
-	for  i in range(n):
-		dList["TASK_%d"%i] = {"start":[],"finish":[]}
-
-	dList["TASK_IDLE"] = {"start":[],"finish":[]}
-
-	for i in range(n):
-		tasks[i] = {}
-		print("\n\n\n Enter Period of task T",i,":")
-		p = input()
-		tasks[i]["Period"] = int(p)
-		print("Enter the WCET of task C",i,":")
-		w = input()
-		tasks[i]["WCET"] = int(w)
-
-	# Writing the dictionary into a JSON file
+def jsonTask(tasks):
 	with open('tasks.json','w') as outfile:
 		json.dump(tasks,outfile,indent = 4)
 
@@ -65,6 +58,7 @@ def Hyperperiod():
 	Calculates the hyper period of the tasks to be scheduled
 	"""
 	temp = []
+	n = len(tasks)
 	for i in range(n):
 		temp.append(tasks[i]["Period"])
 	HP = temp[0]
@@ -79,7 +73,7 @@ def Schedulablity():
 	and then checks for the schedulablity and then returns true is
 	schedulable else false.
 	"""
-	for i in range(n):
+	for i in range(len(tasks)):
 		T.append(int(tasks[i]["Period"]))
 		C.append(int(tasks[i]["WCET"]))
 		u = int(C[i])/int(T[i])
@@ -88,7 +82,7 @@ def Schedulablity():
 	U_factor = sum(U)
 	if U_factor<=1:
 		print("\nUtilization factor: ",U_factor, "underloaded tasks")
-
+		n=len(tasks)
 		sched_util = n*(2**(1/n)-1)
 		print("Checking condition: ",sched_util)
 
@@ -123,6 +117,11 @@ def estimatePriority(RealTime_task):
 	return P
 
 
+def observer_func(t,counter):
+	ExecStart.append(t)
+	ExecFinish.append(t+1)
+
+
 def Simulation(hp):
 	"""
 	The real time schedulng based on Rate Monotonic scheduling is simulated here.
@@ -138,12 +137,16 @@ def Simulation(hp):
 			print(" \n\t The task can not be completed in the specified time ! ", i )
 
 	# main loop for simulator
+	counter = 0
 	for t in range(hp):
 
 		# Determine the priority of the given tasks
 		priority = estimatePriority(RealTime_task)
 
 		if (priority != -1):    #processor is not idle
+			if (RealTime_task[priority]["Observer"]==1):
+				observer_func(t,counter)
+				counter = counter + 1
 			print("\nt{}-->t{} :TASK{}".format(t,t+1,priority))
 			# Update WCET after each clock cycle
 			RealTime_task[priority]["WCET"] -= 1
@@ -180,6 +183,23 @@ def drawGantt():
 	The scheduled results are displayed in the form of a
 	gantt chart for the user to get better understanding
 	"""
+
+	i=0
+	j=0
+	print(len(ExecStart) - 2)
+	while (j <= len(ExecFinish)-1):
+		while (j < len(ExecFinish)-1) and (ExecFinish[j]==ExecStart[j+1]):
+			j= j+1
+			print(j)
+		ExecTemp.append({"start":ExecStart[i],"finish":ExecFinish[j]})
+		j=j+1
+		i=j
+	for i in tasks.keys():
+		if (tasks[i]["Observer"]==1):
+			print("Execution intervals of the observer task: \r\n",ExecTemp)
+			break
+
+	n= len(tasks)
 	colors = ['red','green','blue','orange','yellow']
 	fig = plt.figure()
 	ax = fig.add_subplot(111)
@@ -193,103 +213,54 @@ def drawGantt():
 	plt.show()
 
 
-def showMetrics():
-	"""
-	Displays the resultant metrics after scheduling such as
-	average response time, the average waiting time and the
-	time of first deadline miss
-	"""
-	N = []
-	startTime = []
-	releaseTime = []
-	finishTime = []
-	avg_respTime = []
-	avg_waitTime = []
-
-	# Calculation of number of releases and release time
-	for i in tasks.keys():
-		release =int(hp)/int(tasks[i]["Period"])
-		N.append(release)
-		temp = []
-		for j in range(int(N[i])):
-			temp.append(j*int(tasks[i]["Period"]))
-		# temp.append(hp)
-		releaseTime.append(temp)		
-
-	# Calculation of start time of each task
-	for j,i in enumerate(tasks.keys()):
-		start_array,end_array = filter_out(dList["TASK_%d"%i]["start"],dList["TASK_%d"%i]["finish"],N[j])
-		startTime.append(start_array)
-		finishTime.append(end_array)
-
-	# Calculation of average waiting time and average response time of tasks
-	for i in tasks.keys():
-		avg_waitTime.append(st.mean([a_i - b_i for a_i, b_i in zip(startTime[i],releaseTime[i])]))
-		avg_respTime.append(st.mean([a_i - b_i for a_i, b_i in zip(finishTime[i],releaseTime[i])]))
-
-	# Printing the resultant metrics
-	for i in tasks.keys():
-		metrics[i]["Releases"] = N[i]
-		metrics[i]["Period"] = tasks[i]["Period"]
-		metrics[i]["WCET"] = tasks[i]["WCET"]
-		metrics[i]["AvgRespTime"] = avg_respTime[i]
-		metrics[i]["AvgWaitTime"] = avg_waitTime[i]
-		
-		print("\n Number of releases of task %d ="%i,int(N[i]))
-		print("\n Release time of task%d = "%i,releaseTime[i])
-		print("\n start time of task %d = "%i,startTime[i])
-		print("\n finish time of task %d = "%i,finishTime[i])
-		print("\n Average Response time of task %d = "%i,avg_respTime[i])
-		print("\n Average Waiting time of task %d = "%i,avg_waitTime[i])
-		print("\n")
-
-	# Storing results into a JSON file
-	with open('Metrics.json','w') as f:
-		json.dump(metrics,f,indent = 4)
-	print("\n\n\t\tScheduling of %d tasks completed succesfully...."%n)
 
 
-def filter_out(start_array,finish_array,release_time):
-	"""A filtering function created to create the required data struture from the simulation results"""
-	new_start = []
-	new_finish = []
-	beg_time = min(start_array)
-	diff = int(hp/release_time)
-	# Calculation of finish time and start time from simulation results
-	if(release_time>1):
-		new_start.append(beg_time)
-		prev = beg_time
-		for i in range(int(release_time-1)):
-			beg_time = beg_time + diff
-			new_start.append(beg_time)
-			count = start_array.index(prev)
-			for i in range(start_array.index(prev),start_array.index(beg_time)-1):
-					count+=1
-			new_finish.append(finish_array[count])
-			prev = beg_time
-		new_finish.append(max(finish_array))
 
-	else:
-		end_time = max(finish_array)
-		new_start.append(beg_time)
-		new_finish.append(int(end_time))
-	return new_start,new_finish
+def timewindow(victimperiod,hyperperiod,observerExec):
+	ladder =[0] * hyperperiod
+	for i in range(len(observerExec)):
+		for j in range(observerExec[i]["start"],observerExec[i]["finish"]):
+			ladder[j]=1
+	result = [0] * victimperiod
+	for i in range(len(ladder)):
+		result[i % victimperiod] += ladder[i]
+
+	print(ladder)
+	print(result)
+
+
 
 
 if __name__ == '__main__':
 
 	print("\n\n\t\t_RATE MONOTONIC SCHEDULER_\n")
 
-	Read_data()
+	#Read_data()
+	#IDLE task
+
+	# from paper
+	#createTask(0, 10, 3, 1, 0)
+	#createTask(1,100,15,1,0)
+	#createTask(2, 200, 15, 1, 0)
+	#createTask(3,400,40,1,0)
+	#createTask(4, 1000, 30, 0, 1)
+	#createTask(5, 1000, 200, 1, 0)
+
+	createTask(0, 5, 2, 1, 0)
+	createTask(1,8,1,1,0)
+	createTask(2, 10, 2, 0, 1)
+	createIDLE()
+	#print(tasks)
+	jsonTask(tasks)
+
 	sched_res = Schedulablity()
 	if sched_res == True:
 
 		hp = Hyperperiod()
 		Simulation(hp)
-		showMetrics()
 		drawGantt()
+		timewindow(5,hp,ExecTemp)
 
 	else:
-
-		Read_data()
+		#Read_data()
 		sched_res = Schedulablity()
