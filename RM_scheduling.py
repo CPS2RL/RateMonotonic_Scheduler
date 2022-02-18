@@ -12,8 +12,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import statistics as st
 from collections import defaultdict
+from operator import itemgetter
 
+from sortedcontainers import SortedDict
 tasks = dict()
+tasks_copy= dict()
+tasks_phases = dict()
+runningTasks = dict()
 RealTime_task = dict()
 metrics = defaultdict(dict)
 d = dict()
@@ -37,17 +42,27 @@ def createIDLE():
 	dList["TASK_IDLE"] = {"start": [], "finish": []}
 
 
-def createTask(taskID,period,WCET,secure,observer):
+def createTask(taskID,phase,period,priority,WCET,secure,observer):
 	global hp
 	global tasks
+	global tasks_copy
+	global tasks_phases
 	global dList
 
 	dList["TASK_%d"%taskID] = {"start":[],"finish":[]}
 	tasks[taskID] = {}
+	tasks_copy[taskID] = {}
+	tasks_phases[taskID] = {}
+	tasks[taskID]["Phase"] = phase
+	tasks_phases[taskID]["Phase"] = phase
+
 	tasks[taskID]["Period"] = period
+	tasks[taskID]["Priority"] = priority
 	tasks[taskID]["WCET"] = WCET
 	tasks[taskID]["Secure"] = secure
 	tasks[taskID]["Observer"] = observer
+	tasks_copy[taskID]= tasks[taskID]
+
 
 def jsonTask(tasks):
 	with open('tasks.json','w') as outfile:
@@ -121,7 +136,25 @@ def observer_func(t,counter):
 	ExecStart.append(t)
 	ExecFinish.append(t+1)
 
+def prio(RealTime_task):
+	min = 1000
+	P = -1  # Returns -1 for idle tasks
+	for i in RealTime_task.keys():
+		if (RealTime_task[i]["WCET"] != 0):
+			if (min > RealTime_task[i]["Priority"] or min > tasks_copy[i]["Period"]):
+				min = tasks_copy [i]["Priority"]
+				P= min
+	return P
 
+
+
+
+
+
+#def runTask(phase):
+#	for i in tasks:
+#		if (phase==tasks[i]["Phase"]):
+#			runningTasks[i] = tasks[i]
 def Simulation(hp):
 	"""
 	The real time schedulng based on Rate Monotonic scheduling is simulated here.
@@ -129,20 +162,30 @@ def Simulation(hp):
 
 	# Real time scheduling are carried out in RealTime_task
 	global RealTime_task
-	RealTime_task = copy.deepcopy(tasks)
+	#RealTime_task = copy.deepcopy(tasks)
 	# validation of schedulablity neessary condition
-	for i in RealTime_task.keys():
-		RealTime_task[i]["DCT"] = RealTime_task[i]["WCET"]
-		if (RealTime_task[i]["WCET"] > RealTime_task[i]["Period"]):
-			print(" \n\t The task can not be completed in the specified time ! ", i )
+	#for i in RealTime_task.keys():
+	#	RealTime_task[i]["DCT"] = RealTime_task[i]["WCET"]
+	#	if (RealTime_task[i]["WCET"] > RealTime_task[i]["Period"]):
+	#		print(" \n\t The task can not be completed in the specified time ! ", i )
 
 	# main loop for simulator
 	counter = 0
 	for t in range(hp):
-
+		#if len(RealTime_task)<len(tasks):
+		#	runTask(t)
+			#print(runningTasks)
+		#	RealTime_task = copy.deepcopy(runningTasks)
+		#	print("Real time:",RealTime_task)
+		#print(RealTime_task)
 		# Determine the priority of the given tasks
-		priority = estimatePriority(RealTime_task)
+		for i in range(len(tasks_phases)):
+			if (t==tasks_phases[i]["Phase"]):
+				tasks[i]= copy.deepcopy(tasks_copy[i])
+				RealTime_task[i]=copy.deepcopy(tasks_copy[i])
 
+		#priority = estimatePriority(RealTime_task)
+		priority = prio(RealTime_task)
 		if (priority != -1):    #processor is not idle
 			if (RealTime_task[priority]["Observer"]==1):
 				observer_func(t,counter)
@@ -172,7 +215,8 @@ def Simulation(hp):
 		for i in RealTime_task.keys():
 			RealTime_task[i]["Period"] -= 1
 			if (RealTime_task[i]["Period"] == 0):
-				RealTime_task[i] = copy.deepcopy(tasks[i])
+				print(tasks_copy[i])
+				RealTime_task[i] = copy.deepcopy(tasks_copy[i])
 
 		with open('RM_sched.json','w') as outfile2:
 			json.dump(dList,outfile2,indent = 4)
@@ -246,20 +290,24 @@ if __name__ == '__main__':
 	#createTask(4, 1000, 30, 0, 1)
 	#createTask(5, 1000, 200, 1, 0)
 
-	createTask(0, 5, 2, 1, 0)
-	createTask(1,8,1,1,0)
-	createTask(2, 10, 2, 0, 1)
+	createTask(0, 0 ,5, 0, 2, 1, 0)
+	createTask(1,2, 8, 1, 1, 1, 0)
+	createTask(2, 0, 10, 2, 2, 0, 1)
 	createIDLE()
 	#print(tasks)
+	print("hi tasks before",tasks_copy)
 	jsonTask(tasks)
 
 	sched_res = Schedulablity()
 	if sched_res == True:
-
 		hp = Hyperperiod()
+		for i in range(len(tasks)):
+			if (tasks[i]["Phase"]!=0):
+				del tasks[i]
+		print("hi tasks after", tasks)
 		Simulation(hp)
 		drawGantt()
-		timewindow(5,hp,ExecTemp)
+		timewindow(8,hp,ExecTemp)
 
 	else:
 		#Read_data()
