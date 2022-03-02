@@ -5,6 +5,7 @@
 # ------------------------------------------
 import json
 import copy
+import  random
 from sys import *
 from math import gcd
 from collections import OrderedDict
@@ -139,12 +140,15 @@ def observer_func(t,counter):
 def prio(RealTime_task):
 	min = 1000
 	P = -1  # Returns -1 for idle tasks
+	C = []
 	for i in RealTime_task.keys():
 		if (RealTime_task[i]["WCET"] != 0):
 			if (min > RealTime_task[i]["Priority"] or min > tasks_copy[i]["Period"]):
 				min = tasks_copy [i]["Priority"]
-				P= min
-	return P
+				P = min
+				C.append(i)
+				C.append(P)
+	return C
 
 
 
@@ -185,24 +189,29 @@ def Simulation(hp):
 				RealTime_task[i]=copy.deepcopy(tasks_copy[i])
 
 		#priority = estimatePriority(RealTime_task)
-		priority = prio(RealTime_task)
+		pr = prio(RealTime_task)
+		if not (pr):
+			priority = -1
+		else:
+			index = pr[0]
+			priority = pr[1]
 		if (priority != -1):    #processor is not idle
-			if (RealTime_task[priority]["Observer"]==1):
+			if (RealTime_task[index]["Observer"]==1):
 				observer_func(t,counter)
 				counter = counter + 1
-			print("\nt{}-->t{} :TASK{}".format(t,t+1,priority))
+			#print("\nt{}-->t{} :TASK{}".format(t,t+1,index))
 			# Update WCET after each clock cycle
-			RealTime_task[priority]["WCET"] -= 1
+			RealTime_task[index]["WCET"] -= 1
 			# For the calculation of the metrics
-			dList["TASK_%d"%priority]["start"].append(t)
-			dList["TASK_%d"%priority]["finish"].append(t+1)
+			dList["TASK_%d"%index]["start"].append(t)
+			dList["TASK_%d"%index]["finish"].append(t+1)
 			# For plotting the results
-			y_axis.append("TASK%d"%priority)
+			y_axis.append("TASK%d"%index)
 			from_x.append(t)
 			to_x.append(t+1)
 
 		else:    #processor is idle
-			print("\nt{}-->t{} :IDLE".format(t,t+1))
+			#print("\nt{}-->t{} :IDLE".format(t,t+1))
 			# For the calculation of the metrics
 			dList["TASK_IDLE"]["start"].append(t)
 			dList["TASK_IDLE"]["finish"].append(t+1)
@@ -215,7 +224,7 @@ def Simulation(hp):
 		for i in RealTime_task.keys():
 			RealTime_task[i]["Period"] -= 1
 			if (RealTime_task[i]["Period"] == 0):
-				print(tasks_copy[i])
+				#print(tasks_copy[i])
 				RealTime_task[i] = copy.deepcopy(tasks_copy[i])
 
 		with open('RM_sched.json','w') as outfile2:
@@ -290,24 +299,45 @@ if __name__ == '__main__':
 	#createTask(4, 1000, 30, 0, 1)
 	#createTask(5, 1000, 200, 1, 0)
 
-	createTask(0, 0 ,5, 0, 2, 1, 0)
-	createTask(1,2, 8, 1, 1, 1, 0)
-	createTask(2, 0, 10, 2, 2, 0, 1)
+	f = open("taskset.json")
+	taskset = json.load(f)
+	taskset1= taskset["data"]["tasksets"][0]["tasks"]
+
+	for i in range(1,len(taskset1)):
+		id = i-1
+		phase = taskset1[i]["phase"]
+		period = taskset1[i]["period"]
+		priority = taskset1[i]["priority"]
+		WCET = taskset1[i]["wcet"]
+		secure = 0
+		observer = 0
+		if taskset1[i]["name"]=="APP10":
+			observer = 1
+			secure = 0
+		if taskset1[i]["priority"]>=9:
+			secure = 1
+		#createTask(id, phase, period, priority, WCET, secure, observer)
+
+
+
+	createTask(0, 2 ,11, 2, 1, 1, 0)
+	createTask(1,0, 15, 1, 3, 1, 0)
+	createTask(2, 0, 16, 0, 1, 0, 1)
 	createIDLE()
-	#print(tasks)
-	print("hi tasks before",tasks_copy)
+	print(tasks)
+	#print("hi tasks before",tasks_copy)
 	jsonTask(tasks)
 
 	sched_res = Schedulablity()
 	if sched_res == True:
 		hp = Hyperperiod()
-		for i in range(len(tasks)):
-			if (tasks[i]["Phase"]!=0):
-				del tasks[i]
+		#for i in range(len(tasks)):
+		#	if (tasks[i]["Phase"]!=0):
+		#		del tasks[i]
 		print("hi tasks after", tasks)
 		Simulation(hp)
 		drawGantt()
-		timewindow(8,hp,ExecTemp)
+		timewindow(11,hp,ExecTemp)
 
 	else:
 		#Read_data()
