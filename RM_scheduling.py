@@ -138,16 +138,18 @@ def observer_func(t,counter):
 	ExecFinish.append(t+1)
 
 def prio(RealTime_task):
-	min = 1000
+	min = hp
 	P = -1  # Returns -1 for idle tasks
+	index = -1
 	C = []
 	for i in RealTime_task.keys():
 		if (RealTime_task[i]["WCET"] != 0):
-			if (min > RealTime_task[i]["Priority"] or min > tasks_copy[i]["Period"]):
+			if (min > RealTime_task[i]["Priority"] or min > tasks_copy[i]["Priority"]):
 				min = tasks_copy [i]["Priority"]
 				P = min
-				C.append(i)
-				C.append(P)
+				index = i
+	C.append(index)
+	C.append(P)
 	return C
 
 
@@ -187,7 +189,6 @@ def Simulation(hp):
 			if (t==tasks_phases[i]["Phase"]):
 				tasks[i]= copy.deepcopy(tasks_copy[i])
 				RealTime_task[i]=copy.deepcopy(tasks_copy[i])
-
 		#priority = estimatePriority(RealTime_task)
 		pr = prio(RealTime_task)
 		if not (pr):
@@ -199,7 +200,7 @@ def Simulation(hp):
 			if (RealTime_task[index]["Observer"]==1):
 				observer_func(t,counter)
 				counter = counter + 1
-			#print("\nt{}-->t{} :TASK{}".format(t,t+1,index))
+			print("\nt{}-->t{} :TASK{}".format(t,t+1,index))
 			# Update WCET after each clock cycle
 			RealTime_task[index]["WCET"] -= 1
 			# For the calculation of the metrics
@@ -227,8 +228,8 @@ def Simulation(hp):
 				#print(tasks_copy[i])
 				RealTime_task[i] = copy.deepcopy(tasks_copy[i])
 
-		with open('RM_sched.json','w') as outfile2:
-			json.dump(dList,outfile2,indent = 4)
+		#with open('RM_sched.json','w') as outfile2:
+		#	json.dump(dList,outfile2,indent = 4)
 
 
 def drawGantt():
@@ -243,7 +244,6 @@ def drawGantt():
 	while (j <= len(ExecFinish)-1):
 		while (j < len(ExecFinish)-1) and (ExecFinish[j]==ExecStart[j+1]):
 			j= j+1
-			print(j)
 		ExecTemp.append({"start":ExecStart[i],"finish":ExecFinish[j]})
 		j=j+1
 		i=j
@@ -268,18 +268,23 @@ def drawGantt():
 
 
 
-
-def timewindow(victimperiod,hyperperiod,observerExec):
+def generateExecInter(hyperperiod,observerExec):
 	ladder =[0] * hyperperiod
 	for i in range(len(observerExec)):
 		for j in range(observerExec[i]["start"],observerExec[i]["finish"]):
 			ladder[j]=1
+	return ladder
+
+def timewindow(victimperiod,ladder):
 	result = [0] * victimperiod
 	for i in range(len(ladder)):
 		result[i % victimperiod] += ladder[i]
-
-	print(ladder)
 	print(result)
+	for i in range(len(result)):
+		if result[i]==0:
+			return i
+
+
 
 
 
@@ -299,46 +304,60 @@ if __name__ == '__main__':
 	#createTask(4, 1000, 30, 0, 1)
 	#createTask(5, 1000, 200, 1, 0)
 
-	f = open("taskset.json")
-	taskset = json.load(f)
-	taskset1= taskset["data"]["tasksets"][0]["tasks"]
+	f = open("tasks.json")
+	taskset1 = json.load(f)
+	observerTaskID = 2
+	taskIdentifier = 2
 
-	for i in range(1,len(taskset1)):
-		id = i-1
-		phase = taskset1[i]["phase"]
-		period = taskset1[i]["period"]
-		priority = taskset1[i]["priority"]
-		WCET = taskset1[i]["wcet"]
-		secure = 0
-		observer = 0
-		if taskset1[i]["name"]=="APP10":
-			observer = 1
-			secure = 0
-		if taskset1[i]["priority"]>=9:
-			secure = 1
-		#createTask(id, phase, period, priority, WCET, secure, observer)
+
+	for i in range(len(taskset1)):
+		phase = taskset1[str(i)]["Phase"]
+		period = taskset1[str(i)]["Period"]
+		priority = taskset1[str(i)]["Priority"]
+		WCET = taskset1[str(i)]["WCET"]
+		secure = taskset1[str(i)]["Secure"]
+		observer = taskset1[str(i)]["Observer"]
+		createTask(i, phase, period, priority, WCET, secure, observer)
 
 
 
-	createTask(0, 2 ,11, 2, 1, 1, 0)
-	createTask(1,0, 15, 1, 3, 1, 0)
-	createTask(2, 0, 16, 0, 1, 0, 1)
+	#createTask(0, 2 ,11, 2, 1, 1, 0)
+	#createTask(1,0, 15, 1, 3, 1, 0)
+	#createTask(2, 0, 16, 0, 1, 0, 1)
 	createIDLE()
 	print(tasks)
 	#print("hi tasks before",tasks_copy)
-	jsonTask(tasks)
+	#jsonTask(tasks)
 
-	sched_res = Schedulablity()
-	if sched_res == True:
-		hp = Hyperperiod()
+	#sched_res = Schedulablity()
+	#if sched_res == True:
+	hp = Hyperperiod()
 		#for i in range(len(tasks)):
 		#	if (tasks[i]["Phase"]!=0):
 		#		del tasks[i]
-		print("hi tasks after", tasks)
-		Simulation(hp)
-		drawGantt()
-		timewindow(11,hp,ExecTemp)
+		#print("hi tasks after", tasks)
+	Simulation(hp)
+	drawGantt()
+	ladder = generateExecInter(hp,ExecTemp)
+	del tasks[observerTaskID]
+	for i in range(len(tasks)):
+		HighestPrio = prio(tasks)
+		id = HighestPrio[0]
+		victimPeriod = tasks[id]["Period"]
+		arrival = timewindow(victimPeriod,ladder)
+		print("Victim task ID:",HighestPrio[0])
+		print("Arrival time: ",arrival)
+		print("===================================")
+		for i in range(arrival,len(ladder),victimPeriod):
+			for j in range(tasks[id]["WCET"]):
+				ladder[i+j]=taskIdentifier
+		taskIdentifier+=1
+		print(ladder)
+		del tasks[id]
 
-	else:
+
+
+
+	#else:
 		#Read_data()
-		sched_res = Schedulablity()
+		#sched_res = Schedulablity()

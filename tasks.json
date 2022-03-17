@@ -1,26 +1,51 @@
 {
     "0": {
-        "Phase": 2,
-        "Period": 11,
-        "Priority": 2,
-        "WCET": 1,
+        "Phase": 20,
+        "Period": 600,
+        "Priority": 1,
+        "WCET": 34,
         "Secure": 1,
         "Observer": 0
     },
     "1": {
         "Phase": 0,
-        "Period": 15,
-        "Priority": 1,
-        "WCET": 3,
+        "Period": 550,
+        "Priority": 2,
+        "WCET": 6,
         "Secure": 1,
         "Observer": 0
     },
     "2": {
         "Phase": 0,
-        "Period": 16,
-        "Priority": 0,
-        "WCET": 1,
+        "Period": 200,
+        "Priority": 3,
+        "WCET": 2,
+        "Secure": 0,
+        "Observer": 1
+    },
+    "3": {
+        "Phase": 0,
+        "Period": 300,
+        "Priority": 3,
+        "WCET": 4,
+        "Secure": 0,
+        "Observer": 1
+    },
+    "4": {
+        "Phase": 0,
+        "Period": 600,
+        "Priority": 3,
+        "WCET": 22,
+        "Secure": 0,
+        "Observer": 1
+    },
+    "5": {
+        "Phase": 0,
+        "Period": 650,
+        "Priority": 3,
+        "WCET": 11,
         "Secure": 0,
         "Observer": 1
     }
+
 }

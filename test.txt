@@ -1,0 +1,27 @@
+{
+    "0": {
+        "Phase": 20,
+        "Period": 250,
+        "Priority": 1,
+        "WCET": 4,
+        "Secure": 1,
+        "Observer": 0
+    },
+    "1": {
+        "Phase": 0,
+        "Period": 300,
+        "Priority": 2,
+        "WCET": 3,
+        "Secure": 1,
+        "Observer": 0
+    },
+    "2": {
+        "Phase": 0,
+        "Period": 850,
+        "Priority": 3,
+        "WCET": 27,
+        "Secure": 0,
+        "Observer": 1
+    }
+
+}
